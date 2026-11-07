@@ -1,0 +1,18 @@
+[project]
+name = "comfyui-krea2-anime-capgen"
+description = "Danbooru tags -> captions in the style of the Krea 2 Anime-tuned training captions (no LLM, CPU), with tag autocomplete."
+version = "0.1.0"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+dependencies = []
+classifiers = ["Operating System :: OS Independent"]
+
+[project.urls]
+Repository = "https://github.com/ricecake000/ComfyUI-Krea2-Anime-Capgen"
+Issues = "https://github.com/ricecake000/ComfyUI-Krea2-Anime-Capgen/issues"
+
+[tool.comfy]
+PublisherId = "REPLACE_WITH_PUBLISHER_ID"
+DisplayName = "Krea 2 Anime Caption (capgen)"
+Icon = ""
+includes = []

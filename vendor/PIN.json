@@ -1,0 +1,61 @@
+{
+ "code": {
+  "capgen.py": {
+   "import_rewrites": [
+    "capgen.py:27 import tagdict as TD -> from . import tagdict as TD",
+    "capgen.py:28 import textrules as T -> from . import textrules as T"
+   ],
+   "sha256": "8b1327b444c7a60350e51a4850cc1d49a34a212c1ecd5beb70909d773d098bc8",
+   "size": 182118
+  },
+  "tagdict.py": {
+   "import_rewrites": [],
+   "sha256": "d2d03f5ce4bde5f65460cc8c4f721ce356e4230c93ede08ea1e6ead12944cd55",
+   "size": 5554
+  },
+  "textrules.py": {
+   "import_rewrites": [],
+   "sha256": "c04370bfdc44b5e9c8e0ba51c05c506f0bbb4a08a71307ae1248172b0f9c1604",
+   "size": 67978
+  }
+ },
+ "commit": "0d41bef5529238cbebf19dfa50edf3ad462dc834",
+ "files": {
+  "LICENSE": {
+   "sha256": "d769f7434fa50e4d0cda14959cb279077d17ffbab2dcf10cfa8ae4b49aa85df5",
+   "size": 1065
+  },
+  "README.md": {
+   "sha256": "f05b3b5e9eaab1576b9fef71f0dd6ee84fea74eacf0bcd213b50fcf3c68137af",
+   "size": 5460
+  },
+  "char_series.json": {
+   "sha256": "6e822173b6218ea88a652dc0020cf5efdd2c23910fc1fd0a5e3d1ae72c359c2c",
+   "size": 965475
+  },
+  "data/danbooru-tags.json": {
+   "sha256": "5c7184a7b3fbd53f94d45f4d5ce86b4ec1304c37fa6b555d793d209a5fbc20a9",
+   "size": 2357288
+  },
+  "model/arrays.npz": {
+   "sha256": "37198d392d217b3900a113201e94fa0d81f2f1d9333209bfd15d5d49e4fb2393",
+   "size": 291049759
+  },
+  "model/build_report.json": {
+   "sha256": "9dab3f2d67ce60073238aeea95597ca73b872e64cba262593536addf91a14cde",
+   "size": 8818
+  },
+  "model/meta.json": {
+   "sha256": "3c3f6ca1b3eae91007ec4380599647ca91cd2e1c785ea7486d04fbf9e85d2b07",
+   "size": 82160711
+  },
+  "model/pmi.npy": {
+   "sha256": "319e6938e3cc43edd08c48bc56080f0ad0b5eb5164e5200c9b66101c4ac06643",
+   "size": 75637937
+  }
+ },
+ "hf_repo": "ricecake/krea2-anime-capgen",
+ "revision": "8935740aa929c05149431e956e7333479b507c63",
+ "runtime_format": 2,
+ "runtime_version": "0d41bef55292-3af5b50c"
+}
