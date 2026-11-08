@@ -114,7 +114,8 @@ def check_dir(d, pin):
         try:
             p = inside(d, rel, resolve=False)
         except ValueError as e:
-            bad.append(str(e)); continue
+            bad.append(str(e))
+            continue
         if not os.path.isfile(p):
             bad.append(f'{rel}: missing')
         elif os.path.getsize(p) != v['size']:
@@ -143,7 +144,9 @@ def _fetch(url, dest, size=None, sha256=None, tries=3):
                     b = r.read(1 << 20)
                     if not b:
                         break
-                    f.write(b); h.update(b); n += len(b)
+                    f.write(b)
+                    h.update(b)
+                    n += len(b)
                     if size and time.time() - last > 10:
                         log.info('krea2capgen: %s %.0f / %.0f MB', os.path.basename(dest), n / 1e6, size / 1e6)
                         last = time.time()
