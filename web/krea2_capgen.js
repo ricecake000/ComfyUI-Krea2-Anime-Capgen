@@ -124,6 +124,7 @@ class Dropdown {
     this.el = null; this.ta = null; this.items = []; this.sel = 0; this.timer = null;
     this.q = null;                  // the token the shown items were suggested for
     this.inflight = null;           // {q, ctl}: the request on its way
+    this.accepting = false;         // inside accept(): its own input event is not typing
   }
   ensure() {
     if (this.el) return;
@@ -252,10 +253,21 @@ class Dropdown {
     rest = rest.slice(rest.match(/^[^,\n]*/)[0].length);
     if (rest.startsWith(",")) rest = rest.slice(1).replace(/^[ \t]+/, "");
     const lead = tok.lead || (tok.start > 0 && v[tok.start - 1] === "," ? " " : "");
-    const head = v.slice(0, tok.start) + lead + it.tag + ", ";
-    ta.value = head + rest;
-    ta.selectionStart = ta.selectionEnd = head.length;
-    ta.dispatchEvent(new Event("input", { bubbles: true }));     // the widget value follows the textarea
+    const text = lead + it.tag + ", ", from = tok.start, to = v.length - rest.length;
+    const want = v.slice(0, from) + text + rest;
+    // insertText is one native edit: Ctrl+Z / Ctrl+Shift+Z undo / redo it (assigning .value would clear the
+    // browser's undo history); its input event updates the widget value. Fallback: plain assignment, no undo.
+    this.accepting = true;
+    try {
+      ta.setSelectionRange(from, to);
+      if (!document.execCommand("insertText", false, text) || ta.value !== want) {
+        ta.value = want;
+        ta.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    } finally {
+      this.accepting = false;
+    }
+    ta.selectionStart = ta.selectionEnd = from + text.length;
     this.hide();
   }
   onKey(e) {
@@ -287,7 +299,7 @@ function bindTextarea(ta) {
   bound.add(ta);
   ta.addEventListener("keydown", (e) => dd.onKey(e), true);
   ta.addEventListener("input", (e) => {
-    if (!e.isTrusted) return;          // our own accept()
+    if (!e.isTrusted || dd.accepting) return;          // our own accept()
     if (dd.ta === ta) dd.invalidate();
     dd.schedule(ta);
   });
