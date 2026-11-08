@@ -107,12 +107,16 @@ function caretXY(ta, pos) {
   return { x: Math.min(x, r.right), y: Math.min(Math.max(y, r.top), r.bottom) + 2 };
 }
 
+function segStart(v, pos) {
+  return Math.max(v.lastIndexOf(",", pos - 1), v.lastIndexOf("\n", pos - 1)) + 1;
+}
+
 // the token = text between the previous comma / line break and the caret
 function tokenAt(ta) {
   const pos = ta.selectionStart;
   if (pos !== ta.selectionEnd) return null;
   const v = ta.value;
-  const start = Math.max(v.lastIndexOf(",", pos - 1), v.lastIndexOf("\n", pos - 1)) + 1;
+  const start = segStart(v, pos);
   const raw = v.slice(start, pos);
   const lead = raw.match(/^\s*/)[0];
   const q = raw.slice(lead.length);
@@ -125,6 +129,19 @@ class Dropdown {
     this.q = null;                  // the token the shown items were suggested for
     this.inflight = null;           // {q, ctl}: the request on its way
     this.accepting = false;         // inside accept(): its own input event is not typing
+    this.origin = null;             // {ta, head, prefix, tail, sel}: the text around the current run of typing
+  }
+  // before a user edit. A run of typing = edits between `head` (the text up to the start of the tag the run began
+  // in) and `tail` (the text after the run's first caret / selection end), both unchanged; `prefix` = that tag's
+  // text before the tail when the run began; `sel` = the run began by replacing a selection. An edit outside the run
+  // region starts a new run.
+  beforeEdit(ta) {
+    const o = this.origin, v = ta.value;
+    if (o && o.ta === ta && v.startsWith(o.head) && v.endsWith(o.tail) && v.length >= o.head.length + o.tail.length
+        && ta.selectionStart >= o.head.length && ta.selectionEnd <= v.length - o.tail.length) return;
+    const end = ta.selectionEnd, start = segStart(v, end);
+    this.origin = { ta, head: v.slice(0, start), prefix: v.slice(start, end), tail: v.slice(end),
+                    sel: ta.selectionStart !== end };
   }
   ensure() {
     if (this.el) return;
@@ -243,15 +260,38 @@ class Dropdown {
     const tok = this.ta && tokenAt(this.ta);
     return !!tok && this.items.length > 0 && tok.q === this.q;
   }
-  // replace the token (and the rest of it after the caret) with "tag, "
+  // replace the token with "tag, ". The text between the caret and the next comma / line break (the tail) is:
+  // - the rest of the tag being edited, replaced, when the run of typing began by replacing a selection inside a tag
+  //   ("[red] hair" + "blue") or inside a tag whose text before the caret is still there ("cat |ars" + "e");
+  // - the next tag, kept, when the run began at the start of a tag ("|cherry blossoms" + "blue", "|bow" + "rain") or
+  //   deleted the tag's text before the caret first ("x|bow" + Backspace + "rain"): when unsure, keep the user's text;
+  // - with no known run, replaced only if the accepted tag ends with it.
   accept() {
     const ta = this.ta, it = this.items[this.sel];
     const tok = ta && tokenAt(ta);
     if (!it || !tok || !this.fresh()) { this.hide(); return; }
     const v = ta.value;
-    let rest = v.slice(tok.pos);
-    rest = rest.slice(rest.match(/^[^,\n]*/)[0].length);
-    if (rest.startsWith(",")) rest = rest.slice(1).replace(/^[ \t]+/, "");
+    const after = v.slice(tok.pos);
+    const tailLen = after.match(/^[^,\n]*/)[0].length;
+    const tail = norm(after.slice(0, tailLen));
+    const o = this.origin;
+    this.origin = null;
+    let replace = !tail;
+    if (!replace) {
+      const run = o && o.ta === ta && v.startsWith(o.head) && v.endsWith(o.tail) && tok.pos === v.length - o.tail.length
+                  && tok.start >= o.head.length;
+      const p = run ? o.prefix.trimStart().toLowerCase() : null;
+      if (!run) replace = norm(it.tag).endsWith(tail);
+      else if (!p) replace = false;
+      else replace = o.sel || v.slice(tok.start, tok.pos).trimStart().toLowerCase().startsWith(p);
+    }
+    let rest;
+    if (replace) {
+      rest = after.slice(tailLen);
+      if (rest.startsWith(",")) rest = rest.slice(1).replace(/^[ \t]+/, "");
+    } else {
+      rest = after.replace(/^[ \t]+/, "");
+    }
     const lead = tok.lead || (tok.start > 0 && v[tok.start - 1] === "," ? " " : "");
     const text = lead + it.tag + ", ", from = tok.start, to = v.length - rest.length;
     const want = v.slice(0, from) + text + rest;
@@ -298,6 +338,7 @@ function bindTextarea(ta) {
   if (!(ta instanceof HTMLTextAreaElement) || ta.readOnly || bound.has(ta)) return;
   bound.add(ta);
   ta.addEventListener("keydown", (e) => dd.onKey(e), true);
+  ta.addEventListener("beforeinput", (e) => { if (e.isTrusted && !dd.accepting) dd.beforeEdit(ta); });
   ta.addEventListener("input", (e) => {
     if (!e.isTrusted || dd.accepting) return;          // our own accept()
     if (dd.ta === ta) dd.invalidate();
