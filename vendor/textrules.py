@@ -291,14 +291,17 @@ def facets_of(p):
         appear = bool(_EYE_APPEAR.search(p))
         state = bool(_EYE_STATE.search(p))
         if state and not (appear and re.search(r'\b(' + COLOR_WORDS + r')\b', p)):
-            out.discard('eyes'); out.add('eyestate')
+            out.discard('eyes')
+            out.add('eyestate')
         elif not appear:
-            out.discard('eyes'); out.add('eyestate')
+            out.discard('eyes')
+            out.add('eyestate')
     if 'hair' in out or 'hairacc' in out:
         rest = _HAIR_WORD_ONLY_ACC.sub(' ', p)
         rest = re.sub(r'\b(hairclips?|hairpins?|hairbands?|scrunchies?|barrettes?|kanzashi)\b', ' ', rest)
         if not FACET_RX['hair'].search(rest):
-            out.discard('hair'); out.add('hairacc')
+            out.discard('hair')
+            out.add('hairacc')
     if 'style' in out and _STRONG_STYLE.search(p):
         out.add('strongstyle')
     if _LIMB_LEAD.match(p):
@@ -306,7 +309,8 @@ def facets_of(p):
     if 'hair' in out and out & {'outfit', 'hairacc'}:
         rest = _HAIR_LOC.sub(' ', p)
         if not FACET_RX['hair'].search(rest):
-            out.discard('hair'); out.add('hairacc')
+            out.discard('hair')
+            out.add('hairacc')
     if 'hair' not in out and _HAIR2.search(p) and not (out & {'light', 'setting', 'outfit', 'style'}):
         out.add('hair')
     if _LIMBS.search(p) and not (out & {'outfit', 'hairacc', 'exposure', 'hair', 'eyes', 'pose'}):
@@ -413,11 +417,14 @@ def split_caption(text):
     out, cur, i, si = [], [], 0, 0
     while i < len(t):
         if si < len(spans) and i == spans[si][0]:
-            cur.append(t[spans[si][0]:spans[si][1]]); i = spans[si][1]; si += 1
+            cur.append(t[spans[si][0]:spans[si][1]])
+            i = spans[si][1]
+            si += 1
             continue
         c = t[i]
         if c == ',':
-            out.append(''.join(cur)); cur = []
+            out.append(''.join(cur))
+            cur = []
         else:
             cur.append(c)
         i += 1
@@ -476,10 +483,12 @@ def segment(text, stats=None):
         p = merged[i]
         while (i + 1 < len(merged) and ', ' in p and _ENDS_COLOR.search(p.split(', ')[0]) and
                _COLOR_ONLY.match(p.split(', ')[-1])):
-            p = p + ', ' + merged[i + 1]; i += 1
+            p = p + ', ' + merged[i + 1]
+            i += 1
             if stats is not None:
                 stats['merged_color'] = stats.get('merged_color', 0) + 1
-        out.append(p); i += 1
+        out.append(p)
+        i += 1
     res = []
     pending = ''
     for p in out:

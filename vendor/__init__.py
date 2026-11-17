@@ -1,1 +1,1 @@
-"""Vendored capgen runtime 0d41bef55292-3af5b50c (tools/vendor_runtime.py; loaded as krea2_capgen_vendor)."""
+"""Vendored capgen runtime 4ee698ad61a1-a171147d (tools/vendor_runtime.py; loaded as krea2_capgen_vendor)."""
