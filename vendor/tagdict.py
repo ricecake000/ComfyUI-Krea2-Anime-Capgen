@@ -97,8 +97,10 @@ _WORD_START = re.compile(r'(?<=[^a-z0-9])[a-z0-9]')
 
 class PrefixIndex:
     """Autocomplete over names: class 0 = the name starts with the prefix, class 1 = a later word starts with it
-    ('ears' -> 'cat ears', 'strin' -> 'kanami (strinova)'). Within a class: by rank (the caller's global order).
-    Sorted names + sorted word suffixes, bisect for the range, argpartition for the top k."""
+    ('ears' -> 'cat ears', 'strin' -> 'kanami (strinova)'). The name equal to the prefix comes first, then both classes
+    together by rank (the caller's global order): 'dress' -> dress, white dress, black dress, ..., dress shirt, not the
+    27 names starting with 'dress' before any 'blue dress'. Sorted names + sorted word suffixes, bisect for the ranges,
+    argpartition for the top k."""
 
     def __init__(self, names, rank):
         """names must be sorted; rank[i] = global order of names[i]."""
@@ -108,7 +110,8 @@ class PrefixIndex:
         for j, n in enumerate(names):
             if ' ' in n or not n.isalnum():
                 for m in _WORD_START.finditer(n):
-                    suf.append(n[m.start():]); sid.append(j)
+                    suf.append(n[m.start():])
+                    sid.append(j)
         order = sorted(range(len(suf)), key=suf.__getitem__)
         self.suf = [suf[i] for i in order]
         self.suf_id = np.asarray(sid, dtype=np.int64)[order]
@@ -125,13 +128,15 @@ class PrefixIndex:
 
     def query(self, p, k=20):
         """[(caller index, class)] best first."""
-        if not p:
+        if not p or k <= 0:
             return []
         lo0, hi0 = self._range(self.names, p)
-        out = [(int(j), 0) for j in self._top(np.arange(lo0, hi0, dtype=np.int64), k)]
-        if len(out) < k:
-            lo, hi = self._range(self.suf, p)
-            js = np.unique(self.suf_id[lo:hi])
-            js = js[(js < lo0) | (js >= hi0)]                  # class 0 names are not repeated
-            out += [(int(j), 1) for j in self._top(js, k - len(out))]
+        lo, hi = self._range(self.suf, p)
+        js = np.unique(self.suf_id[lo:hi])
+        js = js[(js < lo0) | (js >= hi0)]                      # class 0 names are not repeated
+        exact = lo0 < hi0 and self.names[lo0] == p             # sorted: an equal name is the first of its range
+        rest = np.concatenate([np.arange(lo0 + exact, hi0, dtype=np.int64), js])
+        out = [(lo0, 0)] if exact else []
+        if k > len(out):
+            out += [(int(j), 0 if lo0 <= j < hi0 else 1) for j in self._top(rest, k - len(out))]
         return out

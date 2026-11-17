@@ -318,12 +318,14 @@ def _as_int(x):
 
 def _gather(off, flat, idx):
     idx = np.asarray(idx, dtype=np.int64)
-    starts = off[idx]; lens = off[idx + 1] - starts
+    starts = off[idx]
+    lens = off[idx + 1] - starts
     tot = int(lens.sum())
     if tot == 0:
         return flat[:0], np.zeros(0, dtype=np.int64), lens
-    owner = np.repeat(np.arange(len(idx)), lens)
-    base = np.repeat(starts - np.concatenate(([0], np.cumsum(lens)[:-1])), lens)
+    reps = lens.astype(np.intp)     # np.repeat wants intp counts: int64 fails on 32-bit numpy (wasm)
+    owner = np.repeat(np.arange(len(idx)), reps)
+    base = np.repeat(starts - np.concatenate(([0], np.cumsum(lens)[:-1])), reps)
     return flat[base + np.arange(tot)], owner, lens
 
 
@@ -445,7 +447,8 @@ class Generator:
             arrays = {k: z[k] for k in z.files}
         pmi = np.load(os.path.join(model_dir, 'pmi.npy'), allow_pickle=False)
         if meta.get('noun_heads'):
-            T.NOUN_HEADS.clear(); T.NOUN_HEADS.update(meta['noun_heads'])
+            T.NOUN_HEADS.clear()
+            T.NOUN_HEADS.update(meta['noun_heads'])
         td = None
         if tags_path is not None and (os.path.exists(tags_path) or tags_path != TAGS_DEFAULT):
             td = TD.TagDict.load(tags_path)
@@ -654,8 +657,9 @@ class Generator:
         self._sg = TD.PrefixIndex(names, rank)
 
     def suggest_info(self, prefix, k=20):
-        """Autocomplete: [{'tag', 'category', 'training_count', 'post_count', 'in_training'}]. Class 0 (the tag starts
-        with the prefix) before class 1 (a later word starts with it), then training count, Danbooru posts, name.
+        """Autocomplete: [{'tag', 'category', 'training_count', 'post_count', 'in_training'}]. Names that start with the
+        prefix and names with a later word starting with it ('dress' -> 'blue dress') together, the name equal to the
+        prefix first, then training count, Danbooru posts, name.
         Artist and meta tags are excluded (they are dropped from captions). A leading '-' (an exclusion) suggests for
         the rest and prefixes each 'tag' with '-'."""
         out = []
@@ -716,7 +720,8 @@ class Generator:
                                            any(x['text'] == c['text'][1:] for x in pos) or
                                            any(T.match_tokens(ct, t, head_rule=False) for ct in c['excl_ct'] for t in toks) or
                                            (c['excl_rx'] and any(c['excl_rx'].search(t) for t in texts))):
-                c['kind'] = 'rejected'; c['reason'] = 'also required'
+                c['kind'] = 'rejected'
+                c['reason'] = 'also required'
         return out
 
     def _resolve(self, c, s, mark=True, fuzzy=True):
@@ -731,18 +736,23 @@ class Generator:
                 (s.startswith('anime illustration') or T.is_subject_like(s)) and _is_coordinated(s)))):
             c['kind'] = 'rejected'      # an exact series / character name is never a plural request
         elif s.startswith('anime illustration'):
-            c['kind'] = 'subject'; c['subject'] = s
+            c['kind'] = 'subject'
+            c['subject'] = s
         elif s in self.char_id:
-            c['kind'] = 'char'; c['char'] = s
+            c['kind'] = 'char'
+            c['char'] = s
         elif s == ORIGINAL:
-            c['kind'] = 'implicit'; c['reason'] = 'original'        # "not from a franchise": a generic subject
+            c['kind'] = 'implicit'
+            c['reason'] = 'original'        # "not from a franchise": a generic subject
         elif self.td is not None and self.td.drop_reason(s) and not (fuzzy and self._char_base(s)):
             # a training character's base name ('serika', 'shigure ui') wins over a Danbooru artist / meta tag
-            c['kind'] = 'dropped'; c['reason'] = self.td.drop_reason(s)
+            c['kind'] = 'dropped'
+            c['reason'] = self.td.drop_reason(s)
         elif (self.td is not None and self.td.category(s) == 'copyright') or s in self.series:
             c['kind'] = 'series'
         elif s in self.fid and self.a['home'][self.fid[s]] >= 0:
-            c['kind'] = 'tag'; c['fid'] = self.fid[s]
+            c['kind'] = 'tag'
+            c['fid'] = self.fid[s]
         elif s in self.tag_freq_all or s in self.fid:
             c['kind'] = 'tag_unsupported'
         else:
@@ -756,13 +766,17 @@ class Generator:
                                                            else ('an ' if s[0] in 'aeiou' else 'a ') + s)
             elif cb:
                 best = max(cb, key=lambda x: self.a['cr_off'][self.char_id[x] + 1] - self.a['cr_off'][self.char_id[x]])
-                c['kind'] = 'char'; c['char'] = best
+                c['kind'] = 'char'
+                c['char'] = best
             elif key in self.tag_norm:
-                c['kind'] = 'tag'; c['fid'] = self.tag_norm[key]
+                c['kind'] = 'tag'
+                c['fid'] = self.tag_norm[key]
             elif al and len(set(al)) == 1:
                 # the free phrase is more specific than its tag ('coffee cup' -> cup): keep its words as a
                 # lexical requirement on the realizing phrase
-                c['kind'] = 'tag'; c['fid'] = al[0]; c['must'] = T.content_tokens(s)
+                c['kind'] = 'tag'
+                c['fid'] = al[0]
+                c['must'] = T.content_tokens(s)
         if c['kind'] == 'tag':
             c['tag'] = self.ft[c['fid']]
         # asks for a text mark (signature, watermark, english text, speech bubble): its phrases are never filtered
@@ -800,14 +814,17 @@ class Generator:
             if c['excl_ct']:
                 c['kind'] = 'exclude'           # lexical only: its words
             else:
-                c['kind'] = 'exclude_unsupported'; c['reason'] = 'no words to exclude'
+                c['kind'] = 'exclude_unsupported'
+                c['reason'] = 'no words to exclude'
                 return
         if c['fid'] is None and all(w in T.STOP or len(w) < 2 for w in
                                     [w for ct in c['excl_ct'] for w in ct] + _plain_words(s2)):
-            c['kind'] = 'exclude_unsupported'; c['reason'] = 'too short to exclude'     # '-e', '-in'
+            c['kind'] = 'exclude_unsupported'
+            c['reason'] = 'too short to exclude'     # '-e', '-in'
         elif all(self._violations(t, [], [c]) for t in self._subject_texts()):
             # 'anime illustration of' starts every subject (the FT captions need it): never removable
-            c['kind'] = 'exclude_unsupported'; c['reason'] = "part of every caption's subject"
+            c['kind'] = 'exclude_unsupported'
+            c['reason'] = "part of every caption's subject"
 
     def _subject_texts(self):
         """Every generic subject phrase (pick_subject's candidates and its default)."""
@@ -894,7 +911,8 @@ class Generator:
         return v
 
     def char_rows(self, c, pure=False):
-        a = self.a; i = self.char_id[c]
+        a = self.a
+        i = self.char_id[c]
         if pure:
             r = a['crp_flat'][a['crp_off'][i]:a['crp_off'][i + 1]]
             if r.size:
@@ -937,7 +955,8 @@ class Generator:
         return a['ot_flat'][a['ot_off'][o]:a['ot_off'][o + 1]]
 
     def group_tags(self, r, g):
-        a = self.a; k = r * NG + g
+        a = self.a
+        k = r * NG + g
         return a['rgt_flat'][a['rgt_off'][k]:a['rgt_off'][k + 1]]
 
     def tag_vector(self, committed):
@@ -953,7 +972,8 @@ class Generator:
     def score_rows(self, rows, g, vec):
         v, conf = vec
         vals, owner, lens = _gather(self.a['rgt_off'], self.a['rgt_flat'], np.asarray(rows, dtype=np.int64) * NG + g)
-        s = np.zeros(len(rows)); bad = np.zeros(len(rows), dtype=bool)
+        s = np.zeros(len(rows))
+        bad = np.zeros(len(rows), dtype=bool)
         if len(vals):
             s = np.bincount(owner, weights=v[vals], minlength=len(rows))
             bad = np.bincount(owner, weights=conf[vals], minlength=len(rows)) > 0
@@ -967,7 +987,8 @@ class Generator:
         z = beta * COMPAT_SCALE * score + (bias if bias is not None else 0.0)
         z = np.where(ok, z, -np.inf)
         z = z - z.max()
-        p = np.exp(z); p /= p.sum()
+        p = np.exp(z)
+        p /= p.sum()
         return int(rng.choice(len(p), p=p))
 
     # ------------------------------------------------------------ donor choice
@@ -1402,7 +1423,9 @@ class Generator:
         beta, reject = ctx['beta'], ctx['reject']
         need = beta > 0 or reject
         v, conf = self.tag_vector(ctx['committed']) if need else (None, None)
-        score = np.zeros(len(occ)); bad = np.zeros(len(occ), dtype=bool); bias = np.zeros(len(occ))
+        score = np.zeros(len(occ))
+        bad = np.zeros(len(occ), dtype=bool)
+        bias = np.zeros(len(occ))
         for k, o in enumerate(occ):
             ts = self.occ_tags(o)
             other = [t for t in ts if t not in avoid]
@@ -1422,14 +1445,17 @@ class Generator:
                 continue
             if any(f not in gsub['real'] for f in subj_cons):
                 continue
-            cands.append(gsub['text']); w.append(gsub['w'])
+            cands.append(gsub['text'])
+            w.append(gsub['w'])
         if not cands:
             return 'anime illustration of a girl'
         if self._cur_ban is not None:       # exclusions: a subject without the excluded words, if any
             ok = [not self._violations(x, [], self._cur_excl) for x in cands]
             if any(ok) and not all(ok):
-                cands = [x for x, k in zip(cands, ok) if k]; w = [x for x, k in zip(w, ok) if k]
-        w = np.array(w); w /= w.sum()
+                cands = [x for x, k in zip(cands, ok) if k]
+                w = [x for x, k in zip(w, ok) if k]
+        w = np.array(w)
+        w /= w.sum()
         return cands[int(rng.choice(len(cands), p=w))]
 
     # ------------------------------------------------------------ items
@@ -1534,20 +1560,26 @@ class Generator:
                 warn.append(f'{c["text"]}: ignored, {c["reason"]}')
         committed = ctx['committed']
         for c in list(tagc):
-            f = c['fid']; committed.add(f)
+            f = c['fid']
+            committed.add(f)
             h = int(a['home'][f])
             if c.get('must'):
                 occ, rows = self.must_index(f, c['must'])
                 if occ.size == 0:
                     # nobody writes it like that: insert the free phrase verbatim
-                    c['kind'] = 'raw'; tagc.remove(c); rawc.append(c); continue
+                    c['kind'] = 'raw'
+                    tagc.remove(c)
+                    rawc.append(c)
+                    continue
                 h = max(GROUPS, key=lambda g: rows[g].size)
             elif h == T.SUBJ:
-                subj_cons.append(c); continue
+                subj_cons.append(c)
+                continue
             elif h < 0 or self.rows_tg(f, h).size == 0:
                 alt = [g for g in GROUPS if self.rows_tg(f, g).size]
                 if not alt:
-                    lost.append(c); continue
+                    lost.append(c)
+                    continue
                 h = max(alt, key=lambda g: a['grp_hist'][f, g])
             c['group'] = h
             groups_cons[h].append(c)
@@ -1607,7 +1639,8 @@ class Generator:
             if r is None:
                 r, missing = self.pick_donor(rng, g, groups_cons[g], ctx, restrict)
             if r is None:
-                missing_all[g] = list(groups_cons[g]); continue
+                missing_all[g] = list(groups_cons[g])
+                continue
             if restrict is not None and g == T.OUTFIT and missing:
                 # costume cannot satisfy the outfit constraints: take an unrestricted donor instead
                 r2, m2 = self.pick_donor(rng, g, groups_cons[g], ctx, None)
@@ -1621,7 +1654,8 @@ class Generator:
                 # no row satisfies ACTION and PLACE jointly: PLACE gets its own donor
                 rp, mp = self.pick_donor(rng, T.PLACE, groups_cons[T.PLACE], ctx, None)
                 if rp is not None:
-                    donors[T.PLACE] = rp; missing_all[T.PLACE] = mp
+                    donors[T.PLACE] = rp
+                    missing_all[T.PLACE] = mp
                     self._take(ctx, rp, T.GROUP_NAMES[T.PLACE])
                     committed.update(int(x) for x in self.group_tags(rp, T.PLACE))
                 else:
@@ -1710,7 +1744,8 @@ class Generator:
                 items = [x for x in items if x['group'] != T.TAIL or x['keys']]
                 items += [dict(self._item_occ(o, [], 'donor'), role='tail') for o in self.row_occ(r2)
                           if a['occ_group'][o] == T.TAIL and not a['occ_leak'][o] and not a['occ_ident'][o]]
-                donors[T.TAIL] = r2; used.append(r2)
+                donors[T.TAIL] = r2
+                used.append(r2)
                 if ctx['distinct']:
                     self._reg('tail', r2)
         # single-valued attributes: hair / eye colour from APPEARANCE only, shot / framing from ACTION only
@@ -1732,16 +1767,20 @@ class Generator:
                     continue
                 it = self._patch(rng, c, items, ctx, realized_at, warn)
                 if it == 'clash':
-                    clash.append(c); continue        # reported, nothing inserted (it would contradict)
+                    clash.append(c)
+                    continue        # reported, nothing inserted (it would contradict)
                 if it is None:
-                    unreal.append(c); continue
+                    unreal.append(c)
+                    continue
                 patched.append(c['text'])
         # ---- tags with no statistics / no usable group: find a phrase that writes them
         for c in lost:
             ct = T.content_tokens(c['text'])
             have = next((x for x in items if T.match_tokens(ct, T.tokens(x['text']))), None)
             if have is not None:          # a donor phrase already writes it
-                have['keys'].add(c['key']); realized_at[c['key']] = have; continue
+                have['keys'].add(c['key'])
+                realized_at[c['key']] = have
+                continue
             occ = self.text_occurrences(ct, c.get('fid') if c.get('fid') is not None else self.fid.get(c['text']))
             if look and occ.size:       # a mixed look: not a phrase describing two appearance parts, if possible
                 pure = occ[~np.isin(self._occ_slot[occ], (MIXED, MIXED_BODY))]
@@ -1773,11 +1812,14 @@ class Generator:
                             warn += w
                         break
                 if status == 'clash':
-                    clash.append(c); continue
+                    clash.append(c)
+                    continue
                 if status == 'text':
-                    unreal.append(c); continue
+                    unreal.append(c)
+                    continue
                 if o is None:
-                    unreal.append(c); continue
+                    unreal.append(c)
+                    continue
                 it = self._item_occ(o, [c['key']], 'patch')
                 it['role'] = self._occ_role(o)
                 if ctx['distinct']:
@@ -1866,11 +1908,13 @@ class Generator:
         for c in cons:
             k = c['key']
             if c in count_conflict or c.get('conflict'):
-                final_unreal.append(c['text']); continue
+                final_unreal.append(c['text'])
+                continue
             if c['kind'] in ('implicit', 'rejected', 'dropped') or k in subj_real:
                 continue
             if c['kind'] in ('char', 'subject', 'series') or c in clash:
-                final_unreal.append(c['text']); continue
+                final_unreal.append(c['text'])
+                continue
             # the holder must still EXPRESS the constraint (matcher), not just carry its key
             holder = next((x for x in items if k in x['keys'] and self.item_realizes(x, c)), None)
             if holder is None:
@@ -1886,7 +1930,8 @@ class Generator:
                     present.add(id(orig))
                     holder = orig
             if holder is None:
-                final_unreal.append(c['text']); continue
+                final_unreal.append(c['text'])
+                continue
             if c in unreal or c in clash:
                 final_unreal.append(c['text'])
             holders[c['text']] = holder
@@ -1905,7 +1950,8 @@ class Generator:
         self._cur_items = items         # generate()'s exclusion check (_violations) reads the final phrase items
         for c in cons:   # the text check behind the explanation
             if c['text'] in realized and realized[c['text']] not in text:
-                final_unreal.append(c['text']); realized.pop(c['text'])
+                final_unreal.append(c['text'])
+                realized.pop(c['text'])
         picked = next((c['char'] for c in cons if c['kind'] == 'series' and c.get('char')), None)
         dn = {}
         for g, r in sorted(donors.items()):
@@ -2338,7 +2384,8 @@ class Generator:
             if n in seen:
                 seen[n]['keys'] |= x['keys']
                 continue
-            seen[n] = x; uniq.append(x)
+            seen[n] = x
+            uniq.append(x)
         toks = [' ' + ' '.join(T.raw_tokens(x['text'])) + ' ' for x in uniq]
         drop = set()
         for i in range(len(uniq)):
@@ -2380,7 +2427,8 @@ class Generator:
         cand = rng.integers(self.N, size=K_TEMPLATE)
         nd = 0
         if pick == 'mix':
-            own = np.unique(np.array(rows, dtype=np.int64)); nd = len(own)
+            own = np.unique(np.array(rows, dtype=np.int64))
+            nd = len(own)
             cand = np.concatenate([own, cand])
         v = np.bincount([self._okey(x) for x in items if x['group'] != T.TAIL], minlength=NK)[:TAIL_KEY]
         tc = self._t_cnt[cand]
@@ -2412,7 +2460,8 @@ class Generator:
         for x in body:          # the template row's own phrases keep their slots
             o = x.get('occ')
             if x['origin'] == 'donor' and o is not None and s <= o < e and keys[o - s] == self._okey(x):
-                pos[id(x)] = float(o - s); taken.add(o - s)
+                pos[id(x)] = float(o - s)
+                taken.add(o - s)
         free = {}
         for i, k in enumerate(keys.tolist()):
             if k != TAIL_KEY and i not in taken:
@@ -2480,7 +2529,8 @@ class Generator:
                     k = self.fac_pos.get(s[heads[i]]['prim'], 0.6)
                     if bk is None or k < bk:
                         best, bk = i, k
-            out.append(seqs[best][heads[best]]); heads[best] += 1
+            out.append(seqs[best][heads[best]])
+            heads[best] += 1
         return out
 
     def _trim(self, items, length, subject):
@@ -2496,7 +2546,8 @@ class Generator:
         seen = {}
         pri = []
         for i, x in enumerate(items):
-            k = seen.get(x['prim'], 0); seen[x['prim']] = k + 1
+            k = seen.get(x['prim'], 0)
+            seen[x['prim']] = k + 1
             pri.append(keep.get(x['prim'], 0.3) * (1.0 if k == 0 else 0.5 ** k))
         order = sorted(range(len(items)), key=lambda i: (pri[i], -i))
         drop = set()
@@ -2505,7 +2556,8 @@ class Generator:
                 break
             if items[i]['keys'] or items[i].get('cue') or items[i].get('need'):    # hair / eyes kept (_look_parts)
                 continue
-            drop.add(i); words -= items[i]['words']
+            drop.add(i)
+            words -= items[i]['words']
         # floor: one appearance, one outfit-or-action, one place (when the donors have them)
         kept = [i for i in range(len(items)) if i not in drop and items[i]['group'] != T.TAIL]
         for cat in ((T.APPEAR,), (T.OUTFIT, T.ACTION), (T.PLACE,)):
@@ -2516,17 +2568,22 @@ class Generator:
             cand = [i for i in drop if items[i]['group'] in cat]
             if cand:
                 i = min(cand, key=lambda i: (-pri[i], items[i]['words']))
-                drop.discard(i); kept.append(i); words += items[i]['words']
+                drop.discard(i)
+                kept.append(i)
+                words += items[i]['words']
         while len(kept) < FLOOR[length]:
             cand = [i for i in drop if items[i]['group'] != T.TAIL]
             if not cand:
                 break
             i = min(cand, key=lambda i: (-pri[i], items[i]['words']))
-            drop.discard(i); kept.append(i); words += items[i]['words']
+            drop.discard(i)
+            kept.append(i)
+            words += items[i]['words']
         # refill: dropped phrases that still fit into the budget, best keep rate first
         for i in sorted(drop, key=lambda i: (-pri[i], items[i]['words'])):
             if words + items[i]['words'] <= budget:
-                drop.discard(i); words += items[i]['words']
+                drop.discard(i)
+                words += items[i]['words']
         return [x for i, x in enumerate(items) if i not in drop]
 
     def generate(self, constraints, n=5, length='long', seed=None, beta=1.0, explain=False, wild=1.0,
@@ -2635,7 +2692,8 @@ class Generator:
             for c in excl:
                 if o is not None and c['fid'] is not None and \
                         (self.occ_realizes(o, c) if c['must'] else c['fid'] in self.occ_tags(o)):
-                    out.append((i, c)); continue
+                    out.append((i, c))
+                    continue
                 if toks is None:
                     toks = T.tokens(text)
                 if any(T.match_tokens(ct, toks, head_rule=False) for ct in c['excl_ct']) or \

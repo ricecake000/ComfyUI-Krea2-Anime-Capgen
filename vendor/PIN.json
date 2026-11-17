@@ -5,21 +5,21 @@
     "capgen.py:27 import tagdict as TD -> from . import tagdict as TD",
     "capgen.py:28 import textrules as T -> from . import textrules as T"
    ],
-   "sha256": "8b1327b444c7a60350e51a4850cc1d49a34a212c1ecd5beb70909d773d098bc8",
-   "size": 182118
+   "sha256": "2e1fc6cfddab501f30e5032c5e10ad11cadddfddf7fc4bb86fc83131a82489e5",
+   "size": 183039
   },
   "tagdict.py": {
    "import_rewrites": [],
-   "sha256": "d2d03f5ce4bde5f65460cc8c4f721ce356e4230c93ede08ea1e6ead12944cd55",
-   "size": 5554
+   "sha256": "ddff5d600a09497b2e4be392d5280903418810a86fd23303b9fd97edbc1f3075",
+   "size": 5939
   },
   "textrules.py": {
    "import_rewrites": [],
-   "sha256": "c04370bfdc44b5e9c8e0ba51c05c506f0bbb4a08a71307ae1248172b0f9c1604",
-   "size": 67978
+   "sha256": "8375222708b6e6c488e641dd15d4a2e436187668912836683ea343c7eb3ca137",
+   "size": 68073
   }
  },
- "commit": "0d41bef5529238cbebf19dfa50edf3ad462dc834",
+ "commit": "4ee698ad61a12f885f52b7951e3beddee55ca183",
  "files": {
   "LICENSE": {
    "sha256": "d769f7434fa50e4d0cda14959cb279077d17ffbab2dcf10cfa8ae4b49aa85df5",
@@ -55,7 +55,7 @@
   }
  },
  "hf_repo": "ricecake/krea2-anime-capgen",
- "revision": "8935740aa929c05149431e956e7333479b507c63",
+ "revision": "cef3797fa655ec75a06bb6f9c960c58c6e69dc18",
  "runtime_format": 2,
- "runtime_version": "0d41bef55292-3af5b50c"
+ "runtime_version": "4ee698ad61a1-a171147d"
 }
